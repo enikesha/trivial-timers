@@ -310,23 +310,21 @@ triggers."
   (let (timer)
     (loop
        (with-scheduler-lock ()
-	 (setq timer (peek-schedule))
-	 (cond ((and timer
-		     (< (get-universal-time)
-			(%timer-expire-time timer)))
-		(handler-case 
-		    (bt:with-timeout ((- (%timer-expire-time timer)
-					 (get-universal-time)))
-		      (bt:condition-wait *scheduler-cond* *scheduler-lock*))
-		  (bt:timeout () nil)))
-	       (timer
-		(assert (eq timer (priority-queue-extract-maximum *schedule*)))
-		(bt:release-lock *scheduler-lock*)
-		;; run the timer without the lock
-		(run-timer timer)
-		(bt:acquire-lock *scheduler-lock*))
-	       ((not timer)
-		(bt:condition-wait *scheduler-cond* *scheduler-lock*)))))))
+     (setq timer (peek-schedule))
+     (cond ((and timer
+                 (< (get-universal-time)
+                    (%timer-expire-time timer)))
+            (bt:condition-wait *scheduler-cond* *scheduler-lock*
+                               :timeout (- (%timer-expire-time timer)
+                                           (get-universal-time))))
+           (timer
+            (assert (eq timer (priority-queue-extract-maximum *schedule*)))
+            (bt:release-lock *scheduler-lock*)
+            ;; run the timer without the lock
+            (run-timer timer)
+            (bt:acquire-lock *scheduler-lock*))
+           ((not timer)
+            (bt:condition-wait *scheduler-cond* *scheduler-lock*)))))))
 
 (defun start-timers ()
   (setf *scheduler-thread*
